@@ -8,10 +8,9 @@ fn load_img(file_path: &str) -> Vec<u8> {
     image_data
 }
 
-fn load_imgs_in_path(folder_path: &str) -> Vec<Vec<u8>> {
+// fn load_imgs_in_path(folder_path: &str) -> Vec<Vec<u8>> {
 
-
-}
+// }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
