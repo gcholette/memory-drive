@@ -6,7 +6,7 @@ function App() {
   const [imgState, setImgState] = useState<string>("");
 
   async function load_img() {
-    const imgData = new Uint8Array(await invoke("load_img", { filePath: '/home/gcholette/Pictures/459149823_931915115651346_6145531330672003157_n.jpg' }))
+    const imgData = new Uint8Array(await invoke("load_imgs_in_path", { filePath: '/home/gcholette/Pictures/' }))
     const img = new Blob([imgData.buffer], { type: 'image/png' } )
     setImgState(URL.createObjectURL(img))
   }
