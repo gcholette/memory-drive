@@ -1,11 +1,11 @@
 use std::fs;
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{BufWriter, Error};
+use std::time::Instant;
 
-use image::{ImageBuffer, ImageReader, ImageResult, DynamicImage, save_buffer, ExtendedColorType};
-use image::codecs::jpeg::{JpegDecoder, JpegEncoder};
-
-use std::any::{type_name, type_name_of_val};
+use image::{ImageDecoder, ImageError, ImageReader, DynamicImage};
+use image::codecs::jpeg::JpegEncoder;
+use image::imageops::FilterType;
 
 enum Mime {
     Jpg,
@@ -21,6 +21,8 @@ enum FileType {
     Video,
     Other
 }
+
+const DEFAULT_ARCHIVE_PATH: &str = "/home/gcholette/Pictures/mdrive_test/";
 
 fn load_img(file_path: &str) -> Vec<u8> {
     let image_data:Vec<u8> = fs::read(file_path)
@@ -45,73 +47,72 @@ fn mime_to_filetype(mime: &Mime) -> FileType {
     }
 }
 
-fn process_img_thumbnail(img: &DynamicImage, mime: Mime) -> Result<BufWriter<File>, ()> {
+fn process_img_thumbnail(img: &DynamicImage, mime: Mime) {
     match mime {
         Mime::Jpg => {
-            // let mut writer = vec![];
-            let file = File::create("/home/gcholette/Pictures/output.jpg");
-            let writer = BufWriter::new(file);
+            let img = img.resize(350, 350, FilterType::Nearest);
+            
+            let file = File::create("/home/gcholette/Pictures/mdrive_output.jpg").unwrap();
+            let mut writer = BufWriter::new(file);
 
-            let encoder = JpegEncoder::new_with_quality(&mut writer, 6);
+            let encoder = JpegEncoder::new_with_quality(&mut writer, 25);
             let result = img.write_with_encoder(encoder).unwrap();
-
-            let height = img.height();
-            let width = img.width();
-
-            // let img2 = ImageBuffer::from_vec(width, height, writer);
-
-            println!("{}", height);
-            println!("{}", width);
-
-
-
-            return Ok(writer)
         },
         _ => todo!()
     }
 
 }
 
-fn create_thumbnail(file_path: &str) -> Result<(), ()> {
-    let img = image::open("/home/gcholette/Pictures/100_1146.JPG").unwrap();
+fn create_thumbnail(img_path: &str) -> Result<(), ImageError> {
 
-    let thumb = process_img_thumbnail(&img, Mime::Jpg).unwrap();
+    let now = Instant::now();
 
-    // save_buffer("/home/gcholette/Pictures/out1.jpg", &thumb, 2856,2142, ExtendedColorType::Rgb16);
+    let mut decoder = ImageReader::open(img_path)?.into_decoder()?;
+    let orientation = decoder.orientation()?;
+    let mut img = DynamicImage::from_decoder(decoder)?;
+    img.apply_orientation(orientation);
+
+    process_img_thumbnail(&img, Mime::Jpg);
+
+    let elapsed = now.elapsed();
+    println!("Loading: {:.2?}", elapsed);
 
     Ok(())
 }
 
 // #[tauri::command]
-// fn load_imgs_in_path(folder_path: &str) -> Vec<ImageReader> {
-//     let dir: fs::ReadDir  = fs::read_dir(folder_path)
-//         .expect("Couldn't open the folder");
+fn analyse_archive(archive_path: &str) -> Result<Vec<String>, Error> {
+    let mut months = Vec::new();
 
-//     let mut img_data: Vec<ImageReader> = vec![];
+    for year_directory in fs::read_dir(archive_path)? {
+        let path = year_directory?.path();
 
-//     for result in dir {
-//         match result {
-//             Err(e) => println!("Error while loading dir: {}", e),
-//             Ok(v) => {
-//                 let path = v.path();
-//                 let img = image::open(&path.to_string_lossy()).unwrap();
-//                 img_data.push(img)
-//                 // img_data.push(load_img(&path.to_string_lossy()))
-//             }
-//         }
-//     }
+        for month_directory in fs::read_dir(&path)? {
+            let month_path = month_directory?
+                .path()
+                .to_string_lossy()
+                .into_owned();
 
-//     img_data
-// }
+            months.push(month_path);
+        }
+    }
+
+    Ok(months)
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
 
-    create_thumbnail("");
+    let months = analyse_archive(DEFAULT_ARCHIVE_PATH).unwrap();
+    for m in months {
+        println!("{}", m);
+    }
+
+    // let _ = create_thumbnail("");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        //.invoke_handler(tauri::generate_handler![load_imgs_in_path])
+        // .invoke_handler(tauri::generate_handler![analyse_archive])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
