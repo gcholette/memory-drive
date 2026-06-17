@@ -100,6 +100,21 @@ fn analyse_archive(archive_path: &str) -> Result<Vec<String>, Error> {
     Ok(months)
 }
 
+fn list_archive_dir(dir_path: &str) -> Result<Vec<String>, Error> {
+    let mut dir_data = Vec::new();
+
+    for file in fs::read_dir(dir_path)? {
+        let file_path: String = file?.path().to_string_lossy().into_owned();
+        let mime = detect_mime(&file_path);
+        match mime {
+            Mime::Jpg => dir_data.push(file_path),
+            _ => ()
+        }
+    }
+
+    Ok(dir_data)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
 
