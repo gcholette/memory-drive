@@ -33,11 +33,6 @@ pub fn run() {
     println!("Loading metadata took: {:.2?}", elapsed);
     process::exit(0x0);
 
-    // let sleep_time = time::Duration::from_millis(100000);
-    // thread::sleep(sleep_time);
-
-    // let _ = create_thumbnail("");
-
     //tauri::Builder::default()
         //.plugin(tauri_plugin_opener::init())
         // .invoke_handler(tauri::generate_handler![analyse_archive])

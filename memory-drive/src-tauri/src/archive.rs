@@ -75,7 +75,7 @@ fn process_img_thumbnail(img: &DynamicImage, mime: Mime) {
             let mut writer = BufWriter::new(file);
 
             let encoder = JpegEncoder::new_with_quality(&mut writer, 25);
-            let result = img.write_with_encoder(encoder).unwrap();
+            img.write_with_encoder(encoder).unwrap();
         }
         _ => todo!(),
     }
