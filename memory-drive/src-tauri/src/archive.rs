@@ -7,7 +7,8 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Error};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+
+use directories::ProjectDirs;
 
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
@@ -66,8 +67,8 @@ fn mime_to_filetype(mime: &Mime) -> FileType {
     }
 }
 
-fn process_img_thumbnail(img: &DynamicImage, mime: Mime) {
-    match mime {
+fn process_img_thumbnail(img: &DynamicImage, img_metadata: &ImgMetadata) {
+    match img_metadata.mime {
         Mime::Jpg => {
             let img = img.resize(350, 350, FilterType::Nearest);
 
@@ -81,18 +82,13 @@ fn process_img_thumbnail(img: &DynamicImage, mime: Mime) {
     }
 }
 
-fn create_thumbnail(img_path: &str) -> Result<(), ImageError> {
-    let now = Instant::now();
-
-    let mut decoder = ImageReader::open(img_path)?.into_decoder()?;
+fn create_thumbnail(img_metadata: &ImgMetadata) -> Result<(), ImageError> {
+    let mut decoder = ImageReader::open(&img_metadata.full_img_path)?.into_decoder()?;
     let orientation = decoder.orientation()?;
     let mut img = DynamicImage::from_decoder(decoder)?;
     img.apply_orientation(orientation);
 
-    process_img_thumbnail(&img, Mime::Jpg);
-
-    let elapsed = now.elapsed();
-    println!("Loading: {:.2?}", elapsed);
+    process_img_thumbnail(&img, img_metadata);
 
     Ok(())
 }
@@ -120,10 +116,9 @@ pub fn analyse_archive(archive_path: &str) -> Result<ArchiveAnalysis, Error> {
     Ok(analysis)
 }
 
-pub fn load_leaf_directory_file_metadatas(dir_path: &Path, archive_path: &str) -> Result<Vec<ImgMetadata>, Error> {
+pub fn load_leaf_directory_file_metadatas(dir_path: &Path) -> Result<Vec<ImgMetadata>, Error> {
     let mut dir_data: Vec<ImgMetadata> = Vec::new();
-    let archive_path = Path::new(archive_path);
-    println!("dirpath {}", dir_path.to_string_lossy());
+    let proj_dirs = ProjectDirs::from("com", "gcholette",  "Memory Drive").unwrap();
 
     // TODO currently assumes that all leaf folders will have the correct name format YYYY-MM
     // other folders should have year/month at 0
@@ -131,14 +126,17 @@ pub fn load_leaf_directory_file_metadatas(dir_path: &Path, archive_path: &str) -
         let file_path: String = file?.path().to_string_lossy().into_owned();
         let full_path = Path::new(&file_path);
         let parent_path = full_path.parent().expect("couldn't infer parent path.");
-        let year_txt = parent_path.file_name().unwrap().to_string_lossy();
-        let file_name = full_path.file_name().unwrap().to_string_lossy();
+        let year_txt = parent_path.file_name().unwrap();
+        let file_name = full_path.file_name().unwrap();
+
+        let thumb_img_path = proj_dirs
+            .cache_dir()
+            .join(year_txt)
+            .join(format!("thumb-{}", file_name.display()));
 
         if !full_path.is_dir() {
-            // TODO figure out how to save thumbnails
-            let thumb_img_path = archive_path.join(".memory-drive/");
-
             let year = year_txt
+                .to_string_lossy()
                 .chars()
                 .take(4)
                 .collect::<String>()
@@ -146,6 +144,7 @@ pub fn load_leaf_directory_file_metadatas(dir_path: &Path, archive_path: &str) -
                 .unwrap();
 
             let month = year_txt
+                .to_string_lossy()
                 .chars()
                 .skip(5)
                 .take(2)
@@ -157,8 +156,8 @@ pub fn load_leaf_directory_file_metadatas(dir_path: &Path, archive_path: &str) -
 
             let memory_drive_img: ImgMetadata = ImgMetadata { 
                 full_img_path: full_path.to_path_buf(), 
-                thumb_img_path, 
-                img_name: file_name.into_owned(), 
+                thumb_img_path: thumb_img_path.to_path_buf(), 
+                img_name: file_name.to_string_lossy().into_owned(), 
                 year, 
                 month,
                 mime

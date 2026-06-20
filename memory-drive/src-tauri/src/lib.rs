@@ -17,7 +17,7 @@ pub fn run() {
         let mut all_imgs_metadata:Vec<ImgMetadata> = Vec::new();
 
         for m in &month_directories {
-            let mut imgs = load_leaf_directory_file_metadatas(&m, DEFAULT_ARCHIVE_PATH).unwrap();
+            let mut imgs = load_leaf_directory_file_metadatas(&m).unwrap();
             all_imgs_metadata.append(&mut imgs);
         }
 
@@ -30,7 +30,7 @@ pub fn run() {
     }
 
     let elapsed = now.elapsed();
-    println!("Loading metadata took: {:.2?}", elapsed);
+    println!("Program execution took: {:.2?}", elapsed);
     process::exit(0x0);
 
     //tauri::Builder::default()
