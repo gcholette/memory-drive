@@ -1,5 +1,7 @@
 //! All the code in this file is human written
 //! without any use of ai tools.
+//! 
+//! TODO remove unwraps
 
 mod archive;
 
@@ -23,6 +25,10 @@ pub fn run() {
 
         for m in &all_imgs_metadata {
             println!("{:?}", m);
+        }
+
+        for i in 0..10 {
+            archive::create_thumbnail(&all_imgs_metadata[i]).unwrap();
         }
 
         println!("\r\n> Done");

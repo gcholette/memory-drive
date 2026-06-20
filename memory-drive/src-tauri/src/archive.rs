@@ -1,5 +1,10 @@
 //! All the code in this file is human written
 //! without any use of ai tools.
+//! 
+//! Parse archives with format 
+//! <archive-name>/2008/2008-01/img.jpg
+//! <archive-name>/2008/2008-02/img.jpg
+//! ...
 
 #![allow(dead_code)]
 
@@ -67,12 +72,26 @@ fn mime_to_filetype(mime: &Mime) -> FileType {
     }
 }
 
-fn process_img_thumbnail(img: &DynamicImage, img_metadata: &ImgMetadata) {
+fn process_img_thumbnail(img_metadata: &ImgMetadata) {
     match img_metadata.mime {
         Mime::Jpg => {
+            if fs::exists(&img_metadata.thumb_img_path).unwrap() {
+                return
+            }
+
+            let mut decoder = ImageReader::open(&img_metadata.full_img_path).unwrap().into_decoder().unwrap();
+            let orientation = decoder.orientation().unwrap();
+            let mut img = DynamicImage::from_decoder(decoder).unwrap();
+            img.apply_orientation(orientation);
+
             let img = img.resize(350, 350, FilterType::Nearest);
 
-            let file = File::create("/home/gcholette/Pictures/mdrive_output.jpg").unwrap();
+            let thumb_parent = img_metadata.thumb_img_path.parent().unwrap();
+            if !fs::exists(&thumb_parent).unwrap() {
+                fs::create_dir_all(thumb_parent).unwrap();
+            }
+
+            let file = File::create(&img_metadata.thumb_img_path).unwrap();
             let mut writer = BufWriter::new(file);
 
             let encoder = JpegEncoder::new_with_quality(&mut writer, 25);
@@ -82,13 +101,18 @@ fn process_img_thumbnail(img: &DynamicImage, img_metadata: &ImgMetadata) {
     }
 }
 
-fn create_thumbnail(img_metadata: &ImgMetadata) -> Result<(), ImageError> {
-    let mut decoder = ImageReader::open(&img_metadata.full_img_path)?.into_decoder()?;
-    let orientation = decoder.orientation()?;
-    let mut img = DynamicImage::from_decoder(decoder)?;
-    img.apply_orientation(orientation);
+pub fn create_thumbnail(img_metadata: &ImgMetadata) -> Result<(), ImageError> {
+    let thumb_parent = img_metadata.thumb_img_path.parent().unwrap();
 
-    process_img_thumbnail(&img, img_metadata);
+    if !fs::exists(&thumb_parent)? {
+        fs::create_dir_all(thumb_parent)?;
+    }
+
+    match mime_to_filetype(&img_metadata.mime) {
+        FileType::Image => process_img_thumbnail(img_metadata),
+        FileType::Video => todo!(),
+        FileType::Other => todo!(),
+    }
 
     Ok(())
 }
@@ -173,3 +197,5 @@ pub fn load_leaf_directory_file_metadatas(dir_path: &Path) -> Result<Vec<ImgMeta
 
     Ok(dir_data)
 }
+
+
