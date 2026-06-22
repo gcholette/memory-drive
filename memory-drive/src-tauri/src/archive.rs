@@ -1,13 +1,14 @@
 //! All the code in this file is human written
 //! without any use of ai tools.
-//! 
-//! Parse archives with format 
+//!
+//! Parses archives with format
 //! <archive-name>/2008/2008-01/img.jpg
 //! <archive-name>/2008/2008-02/img.jpg
 //! ...
 
 #![allow(dead_code)]
 
+use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Error};
@@ -18,8 +19,9 @@ use directories::ProjectDirs;
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageDecoder, ImageError, ImageReader};
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum Mime {
     Jpg,
     Png,
@@ -35,7 +37,7 @@ pub enum FileType {
     Other,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ImgMetadata {
     full_img_path: PathBuf,
     thumb_img_path: PathBuf,
@@ -45,9 +47,57 @@ pub struct ImgMetadata {
     month: u16,
 }
 
-pub struct ArchiveAnalysis {
+#[derive(Serialize)]
+pub struct ArchiveLeafMetadata {
+    imgs: Vec<ImgMetadata>,
+    total_imgs: u32,
+    total_vids: u32,
+}
+
+type ArchiveLeafMap = HashMap<u16, ArchiveLeafMetadata>;
+
+impl ArchiveLeafMetadata {
+    fn new(mut imgs: Vec<ImgMetadata>) -> Self {
+        let total_imgs = imgs.len() as u32;
+        imgs.shrink_to_fit();
+
+        ArchiveLeafMetadata {
+            imgs,
+            total_imgs,
+            total_vids: 0,
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct ArchiveYearMetadata {
+    year_months: ArchiveLeafMap,
+    total_imgs: u32,
+    total_vids: u32,
+}
+
+impl ArchiveYearMetadata {
+    fn new(year_months: ArchiveLeafMap) -> Self {
+        let total_imgs = year_months.iter().fold(0, |acc, x| acc + x.1.total_imgs);
+
+        ArchiveYearMetadata {
+            year_months,
+            total_imgs,
+            total_vids: 0,
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct ArchiveMetadata {
+    years: HashMap<u16, ArchiveYearMetadata>,
+    total_imgs: u32,
+    total_vids: u32,
+}
+
+pub struct ArchiveDirectories {
     pub month_directories: Vec<PathBuf>,
-    pub other_directories: Option<Vec<PathBuf>>
+    pub other_directories: Option<Vec<PathBuf>>,
 }
 
 fn load_img(file_path: &str) -> Vec<u8> {
@@ -76,10 +126,13 @@ fn process_img_thumbnail(img_metadata: &ImgMetadata) {
     match img_metadata.mime {
         Mime::Jpg => {
             if fs::exists(&img_metadata.thumb_img_path).unwrap() {
-                return
+                return;
             }
 
-            let mut decoder = ImageReader::open(&img_metadata.full_img_path).unwrap().into_decoder().unwrap();
+            let mut decoder = ImageReader::open(&img_metadata.full_img_path)
+                .unwrap()
+                .into_decoder()
+                .unwrap();
             let orientation = decoder.orientation().unwrap();
             let mut img = DynamicImage::from_decoder(decoder).unwrap();
             img.apply_orientation(orientation);
@@ -118,7 +171,7 @@ pub fn create_thumbnail(img_metadata: &ImgMetadata) -> Result<(), ImageError> {
 }
 
 // Returns each leaf folder in the archive
-pub fn analyse_archive(archive_path: &str) -> Result<ArchiveAnalysis, Error> {
+pub fn analyse_archive(archive_path: &Path) -> Result<ArchiveDirectories, Error> {
     let mut months = Vec::new();
 
     for year_directory in fs::read_dir(archive_path)? {
@@ -131,18 +184,22 @@ pub fn analyse_archive(archive_path: &str) -> Result<ArchiveAnalysis, Error> {
         }
     }
 
-    let analysis = ArchiveAnalysis {
+    let analysis = ArchiveDirectories {
         month_directories: months,
         // TODO support non-timestamped folders
-        other_directories: None
+        other_directories: None,
     };
 
     Ok(analysis)
 }
 
-pub fn load_leaf_directory_file_metadatas(dir_path: &Path) -> Result<Vec<ImgMetadata>, Error> {
+pub fn load_leaf_directory_file_metadatas(
+    dir_path: &Path,
+    year: u16,
+    month: u16,
+) -> Result<ArchiveLeafMetadata, Error> {
     let mut dir_data: Vec<ImgMetadata> = Vec::new();
-    let proj_dirs = ProjectDirs::from("com", "gcholette",  "Memory Drive").unwrap();
+    let proj_dirs = ProjectDirs::from("com", "gcholette", "Memory Drive").unwrap();
 
     // TODO currently assumes that all leaf folders will have the correct name format YYYY-MM
     // other folders should have year/month at 0
@@ -159,43 +216,52 @@ pub fn load_leaf_directory_file_metadatas(dir_path: &Path) -> Result<Vec<ImgMeta
             .join(format!("thumb-{}", file_name.display()));
 
         if !full_path.is_dir() {
-            let year = year_txt
-                .to_string_lossy()
-                .chars()
-                .take(4)
-                .collect::<String>()
-                .parse::<u16>()
-                .unwrap();
-
-            let month = year_txt
-                .to_string_lossy()
-                .chars()
-                .skip(5)
-                .take(2)
-                .collect::<String>()
-                .parse::<u16>()
-                .unwrap();
-
             let mime = detect_mime(&file_path);
 
-            let memory_drive_img: ImgMetadata = ImgMetadata { 
-                full_img_path: full_path.to_path_buf(), 
-                thumb_img_path: thumb_img_path.to_path_buf(), 
-                img_name: file_name.to_string_lossy().into_owned(), 
-                year, 
+            let memory_drive_img: ImgMetadata = ImgMetadata {
+                full_img_path: full_path.to_path_buf(),
+                thumb_img_path: thumb_img_path.to_path_buf(),
+                img_name: file_name.to_string_lossy().into_owned(),
+                year,
                 month,
-                mime
+                mime,
             };
 
             dir_data.push(memory_drive_img);
-
         }
-
-
-
     }
 
-    Ok(dir_data)
+    Ok(ArchiveLeafMetadata::new(dir_data))
 }
 
+fn load_archive_metadata(archive_path: &Path) -> ArchiveMetadata {
+    let ArchiveDirectories {
+        month_directories,
+        other_directories: _,
+    } = analyse_archive(archive_path).unwrap();
+    let mut archive_leafs: ArchiveLeafMap = HashMap::new();
+    let mut archive_years: HashMap<u16, ArchiveLeafMap> = HashMap::new();
 
+    for m in month_directories {
+        let (year, month) = match m
+            .file_name()
+            .and_then(|x| x.to_str())
+            .and_then(|x| x.split_once('-'))
+        {
+            Some(x) => (x.0.parse().unwrap_or(0), x.1.parse().unwrap_or(1)),
+            None => (0, 0),
+        };
+
+        let mut imgs = load_leaf_directory_file_metadatas(&m, year, month).unwrap();
+        // archive_years.insert(String::from(format!("{}", year)), imgs);
+        if !archive_years.contains_key(&year) {
+            let new_year = HashMap::new();
+            new_year.insert(month, imgs);
+            archive_years.insert(year, new_year);
+
+        }
+        // archive_leafs.insert(String::from(format!("{}", year)), imgs);
+    }
+
+    all_imgs_metadata
+}
