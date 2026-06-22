@@ -258,7 +258,9 @@ fn load_archive_metadata(archive_path: &Path) -> ArchiveMetadata {
             let new_year = HashMap::new();
             new_year.insert(month, imgs);
             archive_years.insert(year, new_year);
-
+        } else {
+            let target = archive_years.get(&year).unwrap();
+            target.insert(month, imgs);
         }
         // archive_leafs.insert(String::from(format!("{}", year)), imgs);
     }
