@@ -47,14 +47,15 @@ pub struct ImgMetadata {
     month: u16,
 }
 
+type ArchiveLeafMap = HashMap<u16, ArchiveLeafMetadata>;
+type ArchiveYearMap = HashMap<u16, ArchiveYearMetadata>;
+
 #[derive(Serialize)]
 pub struct ArchiveLeafMetadata {
     imgs: Vec<ImgMetadata>,
     total_imgs: u32,
     total_vids: u32,
 }
-
-type ArchiveLeafMap = HashMap<u16, ArchiveLeafMetadata>;
 
 impl ArchiveLeafMetadata {
     fn new(mut imgs: Vec<ImgMetadata>) -> Self {
@@ -90,9 +91,21 @@ impl ArchiveYearMetadata {
 
 #[derive(Serialize)]
 pub struct ArchiveMetadata {
-    years: HashMap<u16, ArchiveYearMetadata>,
+    years: ArchiveYearMap,
     total_imgs: u32,
     total_vids: u32,
+}
+
+impl ArchiveMetadata {
+    fn new(years_map: ArchiveYearMap) -> Self {
+        let total_imgs = years_map.iter().fold(0, |acc, x| acc + x.1.total_imgs);
+
+        ArchiveMetadata {
+            years: years_map,
+            total_imgs,
+            total_vids: 0,
+        }
+    }
 }
 
 pub struct ArchiveDirectories {
@@ -234,12 +247,11 @@ pub fn load_leaf_directory_file_metadatas(
     Ok(ArchiveLeafMetadata::new(dir_data))
 }
 
-fn load_archive_metadata(archive_path: &Path) -> ArchiveMetadata {
+pub fn load_archive_metadata(archive_path: &Path) -> ArchiveMetadata {
     let ArchiveDirectories {
         month_directories,
         other_directories: _,
     } = analyse_archive(archive_path).unwrap();
-    let mut archive_leafs: ArchiveLeafMap = HashMap::new();
     let mut archive_years: HashMap<u16, ArchiveLeafMap> = HashMap::new();
 
     for m in month_directories {
@@ -252,18 +264,23 @@ fn load_archive_metadata(archive_path: &Path) -> ArchiveMetadata {
             None => (0, 0),
         };
 
-        let mut imgs = load_leaf_directory_file_metadatas(&m, year, month).unwrap();
+        let imgs: ArchiveLeafMetadata = load_leaf_directory_file_metadatas(&m, year, month).unwrap();
         // archive_years.insert(String::from(format!("{}", year)), imgs);
-        if !archive_years.contains_key(&year) {
-            let new_year = HashMap::new();
+        archive_years.entry(year).or_default().insert(month, imgs);
+        /*if !archive_years.contains_key(&year) {
+            let mut new_year = HashMap::new();
             new_year.insert(month, imgs);
             archive_years.insert(year, new_year);
         } else {
-            let target = archive_years.get(&year).unwrap();
-            target.insert(month, imgs);
-        }
+            archive_years.entry(year).or_default().insert(month, imgs);
+        }*/
         // archive_leafs.insert(String::from(format!("{}", year)), imgs);
     }
 
-    all_imgs_metadata
+    let mut instantiated_archive_years = HashMap::new();
+    for a in archive_years {
+        instantiated_archive_years.insert(a.0, ArchiveYearMetadata::new(a.1));
+    }
+
+    ArchiveMetadata::new(instantiated_archive_years)
 }

@@ -7,40 +7,18 @@ mod archive;
 
 use std::{path::Path, time::Instant};
 
-use crate::archive::{ArchiveAnalysis, ImgMetadata, analyse_archive, load_leaf_directory_file_metadatas};
+use crate::archive::{ArchiveMetadata, load_archive_metadata};
 
 #[tauri::command]
-fn load_archive(archive_path: &Path) -> Vec<ImgMetadata> {
+fn load_archive(archive_path: &Path) -> ArchiveMetadata {
     let now = Instant::now();
-    let ArchiveAnalysis { month_directories, other_directories: _ } = analyse_archive(archive_path).unwrap();
-    let mut all_imgs_metadata:Vec<ImgMetadata> = Vec::new();
 
-    for m in &month_directories {
-        let mut imgs = load_leaf_directory_file_metadatas(&m).unwrap();
-        all_imgs_metadata.append(&mut imgs);
-    }
+    let archive_metadata = load_archive_metadata(archive_path);
 
     let elapsed = now.elapsed();
-    println!("Program execution took: {:.2?}", elapsed);
+    println!("load_archive took: {:.2?}", elapsed);
 
-    all_imgs_metadata
-}
-
-#[tauri::command]
-fn load_archive_metadata(archive_path: &Path) -> Vec<ImgMetadata> {
-    let now = Instant::now();
-    let ArchiveAnalysis { month_directories, other_directories: _ } = analyse_archive(archive_path).unwrap();
-    let mut all_imgs_metadata:Vec<ImgMetadata> = Vec::new();
-
-    for m in &month_directories {
-        let mut imgs = load_leaf_directory_file_metadatas(&m).unwrap();
-        all_imgs_metadata.append(&mut imgs);
-    }
-
-    let elapsed = now.elapsed();
-    println!("Program execution took: {:.2?}", elapsed);
-
-    all_imgs_metadata
+    archive_metadata
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -48,7 +26,7 @@ pub fn run() {
     // let now = Instant::now();
 
     // {
-    //     let ArchiveAnalysis { month_directories, other_directories: _ } = analyse_archive(DEFAULT_ARCHIVE_PATH).unwrap();
+    //     let ArchiveDirectories { month_directories, other_directories: _ } = analyse_archive(DEFAULT_ARCHIVE_PATH).unwrap();
     //     let mut all_imgs_metadata:Vec<ImgMetadata> = Vec::new();
 
     //     for m in &month_directories {
