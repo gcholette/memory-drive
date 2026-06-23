@@ -265,16 +265,7 @@ pub fn load_archive_metadata(archive_path: &Path) -> ArchiveMetadata {
         };
 
         let imgs: ArchiveLeafMetadata = load_leaf_directory_file_metadatas(&m, year, month).unwrap();
-        // archive_years.insert(String::from(format!("{}", year)), imgs);
         archive_years.entry(year).or_default().insert(month, imgs);
-        /*if !archive_years.contains_key(&year) {
-            let mut new_year = HashMap::new();
-            new_year.insert(month, imgs);
-            archive_years.insert(year, new_year);
-        } else {
-            archive_years.entry(year).or_default().insert(month, imgs);
-        }*/
-        // archive_leafs.insert(String::from(format!("{}", year)), imgs);
     }
 
     let mut instantiated_archive_years = HashMap::new();
