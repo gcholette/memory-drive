@@ -1,0 +1,25 @@
+.window {
+    width: 99%;
+    height: fit-content;
+}
+.window-body {
+    min-height: 50px;
+    max-height: 70vh;
+    overflow: auto;
+}
+h4 {
+    width: 100%;
+}
+.gallery-month {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: space-between;
+    margin-right: 12px
+}
+.gallery-item {
+    padding: 8px;
+    height: 100px;
+    width: 100px;
+    
+}
