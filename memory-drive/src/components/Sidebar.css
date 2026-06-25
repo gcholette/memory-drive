@@ -1,5 +1,19 @@
 
 .sidebar {
-    width: 300px;
-    background: gray;
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+button {
+    border-radius: 0;
+}
+button.year {
+    width: 115px;
+}
+
+.load-archive-btn {
+    border-radius: 25px;
+    width: 175px;
 }
