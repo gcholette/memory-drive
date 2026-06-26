@@ -1,10 +1,12 @@
+import { useRef } from "react";
 import { useArchiveStore } from "../store/archiveStore";
-import { useSelectionStore } from "../store/selectionStore";
+import { useStatusStore } from "../store/statusStore";
 import "./Gallery.css";
 import { GalleryItem } from "./GalleryItem";
 
 export const Gallery = () => {
-    const { selectedYear, setSelectedYear } = useSelectionStore()
+    const ref = useRef<HTMLDivElement>(null)
+    const { selectedYear, setSelectedYear } = useStatusStore()
     const { archiveMetadata } = useArchiveStore()
 
     if (selectedYear === null) return null
@@ -24,7 +26,7 @@ export const Gallery = () => {
                 </div>
             </div>
 
-            <div className="window-body">
+            <div className="window-body" ref={ref}>
                 {months.map(m => <div className="gallery-month">
                     <h4>{m}</h4>
                     {year_months[Number(m)].imgs.map(img => <GalleryItem ressource={img} />)}

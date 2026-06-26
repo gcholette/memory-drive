@@ -19,9 +19,9 @@ use directories::ProjectDirs;
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageDecoder, ImageError, ImageReader};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Mime {
     Jpg,
     Png,
@@ -37,12 +37,12 @@ pub enum FileType {
     Other,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ImgMetadata {
     full_img_path: PathBuf,
-    thumb_img_path: PathBuf,
+    pub thumb_img_path: PathBuf,
     img_name: String,
-    mime: Mime,
+    pub mime: Mime,
     year: u16,
     month: u16,
 }
@@ -52,9 +52,9 @@ type ArchiveYearMap = HashMap<u16, ArchiveYearMetadata>;
 
 #[derive(Serialize)]
 pub struct ArchiveLeafMetadata {
-    imgs: Vec<ImgMetadata>,
-    total_imgs: u32,
-    total_vids: u32,
+    pub imgs: Vec<ImgMetadata>,
+    pub total_imgs: u32,
+    pub total_vids: u32,
 }
 
 impl ArchiveLeafMetadata {
@@ -72,9 +72,9 @@ impl ArchiveLeafMetadata {
 
 #[derive(Serialize)]
 pub struct ArchiveYearMetadata {
-    year_months: ArchiveLeafMap,
-    total_imgs: u32,
-    total_vids: u32,
+    pub year_months: ArchiveLeafMap,
+    pub total_imgs: u32,
+    pub total_vids: u32,
 }
 
 impl ArchiveYearMetadata {
@@ -91,9 +91,9 @@ impl ArchiveYearMetadata {
 
 #[derive(Serialize)]
 pub struct ArchiveMetadata {
-    years: ArchiveYearMap,
-    total_imgs: u32,
-    total_vids: u32,
+    pub years: ArchiveYearMap,
+    pub total_imgs: u32,
+    pub total_vids: u32,
 }
 
 impl ArchiveMetadata {
@@ -105,6 +105,14 @@ impl ArchiveMetadata {
             total_imgs,
             total_vids: 0,
         }
+    }
+
+    pub fn flat_img_refs(&self) -> Vec<&ImgMetadata> {
+        self.years
+            .values()
+            .flat_map(|y| y.year_months.values())
+            .flat_map(|y| y.imgs.iter())
+            .collect()
     }
 }
 
@@ -150,7 +158,7 @@ fn process_img_thumbnail(img_metadata: &ImgMetadata) {
             let mut img = DynamicImage::from_decoder(decoder).unwrap();
             img.apply_orientation(orientation);
 
-            let img = img.resize(350, 350, FilterType::Nearest);
+            let img = img.resize(300, 300, FilterType::Nearest);
 
             let thumb_parent = img_metadata.thumb_img_path.parent().unwrap();
             if !fs::exists(&thumb_parent).unwrap() {
@@ -160,7 +168,7 @@ fn process_img_thumbnail(img_metadata: &ImgMetadata) {
             let file = File::create(&img_metadata.thumb_img_path).unwrap();
             let mut writer = BufWriter::new(file);
 
-            let encoder = JpegEncoder::new_with_quality(&mut writer, 25);
+            let encoder = JpegEncoder::new_with_quality(&mut writer, 20);
             img.write_with_encoder(encoder).unwrap();
         }
         _ => todo!(),
