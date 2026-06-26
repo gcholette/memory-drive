@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "memory-drive",
+        "decorations": false,
         "width": 1000,
         "height": 600
       }
@@ -23,7 +24,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": "deb",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -29,7 +29,7 @@ export const Gallery = () => {
             <div className="window-body" ref={ref}>
                 {months.map(m => <div className="gallery-month">
                     <h4>{m}</h4>
-                    {year_months[Number(m)].imgs.map(img => <GalleryItem ressource={img} />)}
+                    {year_months[Number(m)].imgs.map(img => <GalleryItem ressource={img} key={img.thumb_img_path} />)}
 
                 </div>)}
 

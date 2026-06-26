@@ -6,10 +6,39 @@
 mod archive;
 
 use std::{path::Path, time::Instant};
-use std::thread;
 use rayon::prelude::*;
 
-use crate::archive::{ArchiveMetadata, ImgMetadata, Mime, create_thumbnail, load_archive_metadata};
+use crate::archive::{ArchiveMetadata, ImgMetadata, Mime, create_compressed, create_thumbnail, load_archive_metadata};
+
+#[tauri::command]
+fn compress_batch(archive_path: &Path, amount: usize, page: usize) -> u16{
+    let archive_metadata = load_archive_metadata(archive_path);
+    let imgs: Vec<&ImgMetadata> = archive_metadata.flat_img_refs();
+
+    let start = page * amount;
+    let end = (start + amount).min(imgs.len());
+
+    if start >= imgs.len() {
+        return 5;
+    }
+
+    let chunk = &imgs[start..end];
+
+    // let now = Instant::now();
+
+    chunk.par_iter().for_each(|img| {
+        match img.mime {
+            Mime::Jpg | Mime::Png => {
+                let _ = create_compressed(img);
+            },
+            _ => ()
+        }
+    });
+
+    //println!("Compression batch completed in: {:.2?}", now.elapsed());
+
+    return 0
+}
 
 #[tauri::command]
 fn cache_all_thumbnails(archive_path: &Path) -> u16{
@@ -70,7 +99,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![load_archive, load_thumbnail, load_image, cache_all_thumbnails])
+        .invoke_handler(tauri::generate_handler![load_archive, load_thumbnail, load_image, cache_all_thumbnails, compress_batch])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
