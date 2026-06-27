@@ -4,7 +4,7 @@
 }
 .window-body {
     min-height: 50px;
-    max-height: 70vh;
+    max-height: 80vh;
     overflow: auto;
 }
 h4 {
@@ -13,13 +13,25 @@ h4 {
 .gallery-month {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 16px;
     justify-content: space-between;
     margin-right: 12px
 }
 .gallery-item {
     padding: 8px;
-    height: 100px;
-    width: 100px;
-    
+    height: 200px;
+    width: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gallery-item img {
+  margin: 0 auto;
+  max-width: 200px;
+  max-height: 200px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
 }

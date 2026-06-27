@@ -17,11 +17,12 @@ use std::path::{Path, PathBuf};
 use directories::ProjectDirs;
 
 use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::{PngEncoder, CompressionType, FilterType as PngFilterType};
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageDecoder, ImageError, ImageReader};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Mime {
     Jpg,
     Png,
@@ -37,12 +38,18 @@ pub enum FileType {
     Other,
 }
 
-#[derive(Debug, Serialize)]
+enum CompressionMode {
+    Thumbnail,
+    Archive
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ImgMetadata {
     full_img_path: PathBuf,
-    thumb_img_path: PathBuf,
+    pub thumb_img_path: PathBuf,
+    pub compress_img_path: PathBuf,
     img_name: String,
-    mime: Mime,
+    pub mime: Mime,
     year: u16,
     month: u16,
 }
@@ -52,9 +59,9 @@ type ArchiveYearMap = HashMap<u16, ArchiveYearMetadata>;
 
 #[derive(Serialize)]
 pub struct ArchiveLeafMetadata {
-    imgs: Vec<ImgMetadata>,
-    total_imgs: u32,
-    total_vids: u32,
+    pub imgs: Vec<ImgMetadata>,
+    pub total_imgs: u32,
+    pub total_vids: u32,
 }
 
 impl ArchiveLeafMetadata {
@@ -72,9 +79,9 @@ impl ArchiveLeafMetadata {
 
 #[derive(Serialize)]
 pub struct ArchiveYearMetadata {
-    year_months: ArchiveLeafMap,
-    total_imgs: u32,
-    total_vids: u32,
+    pub year_months: ArchiveLeafMap,
+    pub total_imgs: u32,
+    pub total_vids: u32,
 }
 
 impl ArchiveYearMetadata {
@@ -91,9 +98,9 @@ impl ArchiveYearMetadata {
 
 #[derive(Serialize)]
 pub struct ArchiveMetadata {
-    years: ArchiveYearMap,
-    total_imgs: u32,
-    total_vids: u32,
+    pub years: ArchiveYearMap,
+    pub total_imgs: u32,
+    pub total_vids: u32,
 }
 
 impl ArchiveMetadata {
@@ -105,6 +112,17 @@ impl ArchiveMetadata {
             total_imgs,
             total_vids: 0,
         }
+    }
+
+    pub fn flat_img_refs(&self) -> Vec<&ImgMetadata> {
+        let mut data: Vec<&ImgMetadata> = self.years
+            .values()
+            .flat_map(|y| y.year_months.values())
+            .flat_map(|y| y.imgs.iter())
+            .collect();
+
+        data.sort_by_key(|x| &x.full_img_path);
+        data
     }
 }
 
@@ -119,9 +137,14 @@ fn load_img(file_path: &str) -> Vec<u8> {
     image_data
 }
 
+// TODO make this actually consume MIME data rather than the ext
 fn detect_mime(file_path: &str) -> Mime {
-    if file_path.to_ascii_lowercase().contains(".jpg") {
+    if file_path.to_ascii_lowercase().contains(".jpg") || file_path.to_ascii_lowercase().contains(".jpeg"){
         return Mime::Jpg;
+    }
+
+    if file_path.to_ascii_lowercase().contains(".png") {
+        return Mime::Png;
     }
 
     Mime::Other
@@ -135,34 +158,101 @@ fn mime_to_filetype(mime: &Mime) -> FileType {
     }
 }
 
+fn compress_jpg(img_metadata: &ImgMetadata, compression_mode: CompressionMode, size: u32, filter_type: FilterType) {
+    let target_path =  match compression_mode {
+        CompressionMode::Thumbnail => &img_metadata.thumb_img_path,
+        CompressionMode::Archive => &img_metadata.compress_img_path
+    };
+
+    if fs::exists(&target_path).unwrap() {
+        return;
+    }
+
+    let mut decoder = ImageReader::open(&img_metadata.full_img_path)
+        .unwrap()
+        .into_decoder()
+        .unwrap();
+
+    let orientation = decoder.orientation().unwrap();
+
+    let mut img = DynamicImage::from_decoder(decoder).unwrap();
+    img.apply_orientation(orientation);
+
+    let img = img.resize(size, size, filter_type);
+
+    let target_parent = target_path.parent().unwrap();
+    if !fs::exists(&target_parent).unwrap() {
+        fs::create_dir_all(target_parent).unwrap();
+    }
+
+    let file = File::create(&target_path).unwrap();
+    let mut writer = BufWriter::new(file);
+
+    let encoder = JpegEncoder::new_with_quality(&mut writer, 60);
+    img.write_with_encoder(encoder).unwrap();
+}
+
+// TODO abstract similar compressers to a generic function / impl
+fn compress_png(img_metadata: &ImgMetadata, compression_mode: CompressionMode, size: u32, filter_type: FilterType) {
+    let target_path =  match compression_mode {
+        CompressionMode::Thumbnail => &img_metadata.thumb_img_path,
+        CompressionMode::Archive => &img_metadata.compress_img_path
+    };
+
+    if fs::exists(&target_path).unwrap() {
+        return;
+    }
+
+    let mut decoder = ImageReader::open(&img_metadata.full_img_path)
+        .unwrap()
+        .into_decoder()
+        .unwrap();
+
+    let orientation = decoder.orientation().unwrap();
+
+    let mut img = DynamicImage::from_decoder(decoder).unwrap();
+    img.apply_orientation(orientation);
+
+    let img = img.resize(size, size, filter_type);
+
+    let target_parent = target_path.parent().unwrap();
+    if !fs::exists(&target_parent).unwrap() {
+        fs::create_dir_all(target_parent).unwrap();
+    }
+
+    let file = File::create(&target_path).unwrap();
+    let mut writer = BufWriter::new(file);
+    let has_alpha = img.color().has_alpha();
+    if has_alpha {
+        let encoder = PngEncoder::new_with_quality(&mut writer, CompressionType::Best, PngFilterType::Adaptive);
+        img.write_with_encoder(encoder).unwrap();
+    } else {
+        let encoder = JpegEncoder::new_with_quality(&mut writer, 60);
+        img.write_with_encoder(encoder).unwrap();
+    }
+
+}
+
 fn process_img_thumbnail(img_metadata: &ImgMetadata) {
     match img_metadata.mime {
         Mime::Jpg => {
-            if fs::exists(&img_metadata.thumb_img_path).unwrap() {
-                return;
-            }
+            compress_jpg(img_metadata, CompressionMode::Thumbnail, 200, FilterType::Nearest);
+        },
+        Mime::Png => {
+            compress_png(img_metadata, CompressionMode::Thumbnail, 800, FilterType::Triangle);
+        },
+        _ => todo!(),
+    }
+}
 
-            let mut decoder = ImageReader::open(&img_metadata.full_img_path)
-                .unwrap()
-                .into_decoder()
-                .unwrap();
-            let orientation = decoder.orientation().unwrap();
-            let mut img = DynamicImage::from_decoder(decoder).unwrap();
-            img.apply_orientation(orientation);
-
-            let img = img.resize(350, 350, FilterType::Nearest);
-
-            let thumb_parent = img_metadata.thumb_img_path.parent().unwrap();
-            if !fs::exists(&thumb_parent).unwrap() {
-                fs::create_dir_all(thumb_parent).unwrap();
-            }
-
-            let file = File::create(&img_metadata.thumb_img_path).unwrap();
-            let mut writer = BufWriter::new(file);
-
-            let encoder = JpegEncoder::new_with_quality(&mut writer, 25);
-            img.write_with_encoder(encoder).unwrap();
-        }
+fn process_img_compression(img_metadata: &ImgMetadata) {
+    match img_metadata.mime {
+        Mime::Jpg => {
+            compress_jpg(img_metadata, CompressionMode::Archive, 800, FilterType::Triangle);
+        },
+        Mime::Png => {
+            compress_png(img_metadata, CompressionMode::Archive, 800, FilterType::Triangle);
+        },
         _ => todo!(),
     }
 }
@@ -176,6 +266,22 @@ pub fn create_thumbnail(img_metadata: &ImgMetadata) -> Result<(), ImageError> {
 
     match mime_to_filetype(&img_metadata.mime) {
         FileType::Image => process_img_thumbnail(img_metadata),
+        FileType::Video => todo!(),
+        FileType::Other => todo!(),
+    }
+
+    Ok(())
+}
+
+pub fn create_compressed(img_metadata: &ImgMetadata) -> Result<(), ImageError> {
+    let parent = img_metadata.compress_img_path.parent().unwrap();
+
+    if !fs::exists(&parent)? {
+        fs::create_dir_all(parent)?;
+    }
+
+    match mime_to_filetype(&img_metadata.mime) {
+        FileType::Image => process_img_compression(img_metadata),
         FileType::Video => todo!(),
         FileType::Other => todo!(),
     }
@@ -225,8 +331,15 @@ pub fn load_leaf_directory_file_metadatas(
 
         let thumb_img_path = proj_dirs
             .cache_dir()
+            .join(Path::new("thumbs"))
             .join(year_txt)
             .join(format!("thumb-{}", file_name.display()));
+
+        let compress_img_type = proj_dirs
+            .cache_dir()
+            .join(Path::new("compressed"))
+            .join(year_txt)
+            .join(format!("comp-{}", file_name.display()));
 
         if !full_path.is_dir() {
             let mime = detect_mime(&file_path);
@@ -234,6 +347,7 @@ pub fn load_leaf_directory_file_metadatas(
             let memory_drive_img: ImgMetadata = ImgMetadata {
                 full_img_path: full_path.to_path_buf(),
                 thumb_img_path: thumb_img_path.to_path_buf(),
+                compress_img_path: compress_img_type.to_path_buf(),
                 img_name: file_name.to_string_lossy().into_owned(),
                 year,
                 month,
@@ -264,7 +378,8 @@ pub fn load_archive_metadata(archive_path: &Path) -> ArchiveMetadata {
             None => (0, 0),
         };
 
-        let imgs: ArchiveLeafMetadata = load_leaf_directory_file_metadatas(&m, year, month).unwrap();
+        let imgs: ArchiveLeafMetadata =
+            load_leaf_directory_file_metadatas(&m, year, month).unwrap();
         archive_years.entry(year).or_default().insert(month, imgs);
     }
 

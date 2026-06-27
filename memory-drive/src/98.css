@@ -879,6 +879,7 @@ table>tbody>tr>* {
 .progress-indicator {
     -webkit-appearance: none;
     -moz-appearance: none;
+    background-color: silver;
     appearance: none;
     border: none;
     border-radius: 0;

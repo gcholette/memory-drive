@@ -1,10 +1,12 @@
+import { useRef } from "react";
 import { useArchiveStore } from "../store/archiveStore";
-import { useSelectionStore } from "../store/selectionStore";
+import { useStatusStore } from "../store/statusStore";
 import "./Gallery.css";
 import { GalleryItem } from "./GalleryItem";
 
 export const Gallery = () => {
-    const { selectedYear, setSelectedYear } = useSelectionStore()
+    const ref = useRef<HTMLDivElement>(null)
+    const { selectedYear, setSelectedYear } = useStatusStore()
     const { archiveMetadata } = useArchiveStore()
 
     if (selectedYear === null) return null
@@ -14,20 +16,18 @@ export const Gallery = () => {
     const months = Object.keys(year_months)
 
     return (
-        <div className="window">
+        <div className="window gallery">
             <div className="title-bar">
                 <div className="title-bar-text">{selectedYear}</div>
                 <div className="title-bar-controls">
-                    <button aria-label="Minimize"></button>
-                    <button aria-label="Maximize"></button>
                     <button aria-label="Close" onClick={() => setSelectedYear(null)}></button>
                 </div>
             </div>
 
-            <div className="window-body">
+            <div className="window-body" ref={ref}>
                 {months.map(m => <div className="gallery-month">
                     <h4>{m}</h4>
-                    {year_months[Number(m)].imgs.map(img => <GalleryItem ressource={img} />)}
+                    {year_months[Number(m)].imgs.map(img => <GalleryItem ressource={img} key={img.thumb_img_path} />)}
 
                 </div>)}
 
