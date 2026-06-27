@@ -3,16 +3,32 @@ import { create } from 'zustand'
 type Year = number
 
 
-export type SelectionStore = {
+export type StatusStore = {
   selectedYear: Year | null
-  isScrolling: boolean
   setSelectedYear: (year: Year | null) => void
-  setIsScrolling: (isScrolling: boolean) => void
+
+  loadingStatus: number | null,
+  setLoadingStatus: (loadingStatus: number | null) => void
+
+  batchesToProcess: number | null,
+  setBatchesToProcess: (batchesToProcess: number | null) => void
+
+  settingsIsOpen: boolean
+  openSettings: () => void
+  closeSettings: () => void
 }
 
-export const useStatusStore = create<SelectionStore>((set) => ({
+export const useStatusStore = create<StatusStore>((set) => ({
   selectedYear: null,
-  isScrolling: false,
   setSelectedYear: (year: Year | null) => set({ selectedYear: year }),
-  setIsScrolling: (isScrolling: boolean) => set({ isScrolling }),
+
+  loadingStatus: null,
+  setLoadingStatus: (loadingStatus) => set({loadingStatus}),
+
+  batchesToProcess: null,
+  setBatchesToProcess: (batchesToProcess) => set({batchesToProcess}),
+
+  settingsIsOpen: false,
+  openSettings: () => set({ settingsIsOpen: true }),
+  closeSettings: () => set({ settingsIsOpen: false })
 }))

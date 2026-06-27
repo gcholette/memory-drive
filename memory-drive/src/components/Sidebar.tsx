@@ -3,23 +3,25 @@ import { useArchiveStore } from "../store/archiveStore"
 import "./Sidebar.css";
 import { ArchiveMetadata } from "../types/archiveMetadata";
 import { useStatusStore } from "../store/statusStore";
-import { useState } from "react";
 
 export const Sidebar = () => {
+    const {
+        setSelectedYear,
+        batchesToProcess,
+        loadingStatus,
+        setBatchesToProcess,
+        setLoadingStatus,
+        openSettings
+    } = useStatusStore()
     const { archiveMetadata, setArchiveMetadata } = useArchiveStore()
-    const { setSelectedYear } = useStatusStore()
-    const [loadingStatus, setLoadingStatus] = useState<number | null>(null)
-    const [batchesToProcess, setBatchesToProcess] = useState<number | null>(null)
 
     const load_archive = async () => {
         const archiveData = (await invoke("load_archive", { archivePath: '/home/gcholette/Pictures/mdrive_test/' })) as ArchiveMetadata
-        console.log(archiveData)
-        await invoke("cache_all_thumbnails", { archivePath: '/home/gcholette/Pictures/mdrive_test/' })
-
         setArchiveMetadata(archiveData)
+        await batchOperation("thumbnail")
     }
 
-    const compress_archive = async () => {
+    const batchOperation = async (type: "thumbnail" | "compress") => {
         const archiveData = (await invoke("load_archive", { archivePath: '/home/gcholette/Pictures/mdrive_test/' })) as ArchiveMetadata
         const total = archiveData.total_imgs + archiveData.total_vids
         const pageSize = 40
@@ -28,7 +30,7 @@ export const Sidebar = () => {
         setLoadingStatus(0)
         setBatchesToProcess(totalPages)
         for (let i = 0; i <= totalPages; i++) {
-            await invoke("compress_batch", { archivePath: '/home/gcholette/Pictures/mdrive_test/', amount: pageSize, page: i })
+            await invoke("batch_operation", { operation: type, archivePath: '/home/gcholette/Pictures/mdrive_test/', amount: pageSize, page: i })
             setLoadingStatus(i)
         }
 
@@ -49,11 +51,13 @@ export const Sidebar = () => {
                 <button type="submit" onClick={load_archive}>Load Archive</button>
             </div>
             <div>
-
-                <button type="submit" onClick={compress_archive}>Compress Archive</button>
+                <button type="submit" onClick={() => batchOperation("compress")}>Compress Archive</button>
+            </div>
+            <div>
+                <button type="submit" onClick={openSettings}>Settings</button>
             </div>
             {loadingStatus !== null &&
-                <div className="window loading-window" style={{"width": "300px"}}>
+                <div className="window dialog" style={{ "width": "300px" }}>
                     <div className="title-bar">
                         <div className="title-bar-text">Processing...</div>
                     </div>

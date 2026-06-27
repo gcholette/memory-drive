@@ -16,12 +16,10 @@ export const Gallery = () => {
     const months = Object.keys(year_months)
 
     return (
-        <div className="window">
+        <div className="window gallery">
             <div className="title-bar">
                 <div className="title-bar-text">{selectedYear}</div>
                 <div className="title-bar-controls">
-                    <button aria-label="Minimize"></button>
-                    <button aria-label="Maximize"></button>
                     <button aria-label="Close" onClick={() => setSelectedYear(null)}></button>
                 </div>
             </div>

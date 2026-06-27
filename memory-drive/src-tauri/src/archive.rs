@@ -13,7 +13,6 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Error};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 
 use directories::ProjectDirs;
 
@@ -238,7 +237,10 @@ fn process_img_thumbnail(img_metadata: &ImgMetadata) {
     match img_metadata.mime {
         Mime::Jpg => {
             compress_jpg(img_metadata, CompressionMode::Thumbnail, 200, FilterType::Nearest);
-        }
+        },
+        Mime::Png => {
+            compress_png(img_metadata, CompressionMode::Thumbnail, 800, FilterType::Triangle);
+        },
         _ => todo!(),
     }
 }
@@ -249,9 +251,7 @@ fn process_img_compression(img_metadata: &ImgMetadata) {
             compress_jpg(img_metadata, CompressionMode::Archive, 800, FilterType::Triangle);
         },
         Mime::Png => {
-            let now = Instant::now();
             compress_png(img_metadata, CompressionMode::Archive, 800, FilterType::Triangle);
-            println!("compress_png: {:.2?}", now.elapsed());
         },
         _ => todo!(),
     }
